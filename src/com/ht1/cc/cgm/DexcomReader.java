@@ -302,7 +302,7 @@ public class DexcomReader extends AsyncTask<UsbSerialDriver, Object, Object>{
         CSVWriter writer;
 		try {
 			
-			writer = new CSVWriter(new FileWriter(new File(context.getFilesDir(), "hayden.csv")),',', CSVWriter.NO_QUOTE_CHARACTER);
+			writer = new CSVWriter(new FileWriter(new File(context.getFilesDir(), "data.csv")),',', CSVWriter.NO_QUOTE_CHARACTER);
 	        List<String[]> data = new ArrayList<String[]>();
 	        data.add(new String[] {"GlucoseValue","DisplayTime"});
 	        

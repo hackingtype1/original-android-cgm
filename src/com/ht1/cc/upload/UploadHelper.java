@@ -20,7 +20,7 @@ public class UploadHelper extends AsyncTask<String, Integer, Long> {
 	protected Long doInBackground(String... data) {
 
 		//SO, here is where you're going to want to decide 
-		//how and where you want to send the "hayden.csv"
+		//how and where you want to send the "data.csv"
 
 		//I send to both azure site (FTP) and a google spreadsheet - between the
 		//two I get pretty close to 100% up-time
@@ -37,10 +37,10 @@ public class UploadHelper extends AsyncTask<String, Integer, Long> {
 			if (ftpClient.getReplyString().contains("250")) {
 				ftpClient.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE);
 				BufferedInputStream buffIn = null;
-				buffIn = new BufferedInputStream(new FileInputStream(new File(context.getFilesDir(), "hayden.csv")));
+				buffIn = new BufferedInputStream(new FileInputStream(new File(context.getFilesDir(), "data.csv")));
 				ftpClient.enterLocalPassiveMode();
 
-				ftpClient.storeFile("hayden.csv", buffIn);
+				ftpClient.storeFile("data.csv", buffIn);
 				buffIn.close();
 				ftpClient.logout();
 				ftpClient.disconnect();
