@@ -7,10 +7,13 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
+import java.util.TimeZone;
 
 import com.ht1.cc.USB.UsbSerialDriver;
 import com.ht1.cc.USB.UsbSerialProber;
@@ -208,15 +211,24 @@ public class DexcomReader extends AsyncTask<UsbSerialDriver, Object, Object>{
                 ByteBuffer buffer = ByteBuffer.wrap(dateTime);
                 int dt = buffer.getInt();//*1000;
 
-                GregorianCalendar ts = new GregorianCalendar(2009,0,1);
+                String string_date = "1-January-2009";
+                SimpleDateFormat f = new SimpleDateFormat("dd-MMM-yyyy");
+                Date d;
+				try {
+					d = f.parse(string_date);
+				} catch (ParseException e) {
+					// TODO Auto-generated catch block
+					d = new Date();
+				}
+                long milliseconds = d.getTime();
                 
-        		long longBase = ts.getTime().getTime();
-        		
-        		//If times are off by an hour: update this
-        		//Also make sure your phone isn't set to update time based on location
-        		long timeAdd = longBase + (1000L*dt);// - 3600000L;
+                long timeAdd = milliseconds + (1000L*dt);
+                TimeZone tz = TimeZone.getDefault();
                 
-        		Timestamp display = new Timestamp(timeAdd);
+                if (tz.inDaylightTime(new Date()))
+                	timeAdd = timeAdd - 3600000L;
+                
+        		Date display = new Date(timeAdd);
         		
         		byte trendArrow = (byte) (tempRecord[10] & (byte)15);
         		String trend = "Not Calculated";
