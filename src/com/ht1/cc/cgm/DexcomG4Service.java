@@ -1,8 +1,6 @@
 package com.ht1.cc.cgm;
 
 import java.io.IOException;
-//import java.util.concurrent.ExecutorService;
-//import java.util.concurrent.Executors;
 
 import com.ht1.cc.USB.SerialInputOutputManager;
 import com.ht1.cc.USB.USBPower;
@@ -55,6 +53,7 @@ public class DexcomG4Service extends Service {
 	@Override
 	public void onCreate() {
 		super.onCreate();
+		Log.i(TAG, "onCreate called");
 		wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
 		mUsbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
 		// connectToG4();
@@ -64,10 +63,16 @@ public class DexcomG4Service extends Service {
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
-
+		Log.i(TAG, "onDestroy called, will we recover?");
 		mHandler.removeCallbacks(readAndUpload);
 		USBOn();
-		doReadAndUpload();
+
+		try {
+			doReadAndUpload();
+		} catch (Exception e) {
+			Log.e(TAG, "onDestroy doReadAndUpload failed", e);
+		}
+
 		USBOn();
 
 		stopIoManager();
@@ -76,7 +81,7 @@ public class DexcomG4Service extends Service {
 			try {
 				mSerialDevice.close();
 			} catch (IOException e) {
-				// Ignore.
+				Log.e(TAG, "Unable to readAndUpload", e);
 			}
 			mSerialDevice = null;
 		}
@@ -88,39 +93,70 @@ public class DexcomG4Service extends Service {
 	private Runnable readAndUpload = new Runnable() {
 		public void run() {
 
-			try {
-				uploader = new UploadHelper(getBaseContext());
-				if (isConnected() && isOnline()) {
+		try {
+			uploader = new UploadHelper(getBaseContext());
+			if (isConnected() && isOnline()) {
 
-					USBOn();
+				USBOn();
+				try {
 					doReadAndUpload();
-					USBOff();
-
-					//displayMessage("Upload Complete");
-
-				} else {
-					USBOn();
-					USBOff();
-					displayMessage("Upload Fail");
+				} catch (Exception e) {
+					Log.e(TAG, "readAndUpload doReadAndUpload failed, caught exception so read will be scheduled again", e);
 				}
+				USBOff();
 
-			} catch (Exception e) {
-				// ignore... for now - simply prevent service and activity from
-				// losing its shit.
+				//displayMessage("Upload Complete");
+
+			} else {
 				USBOn();
 				USBOff();
-				e.printStackTrace();
+				Log.i(TAG, "Upload Fail");
+				displayMessage("Upload Fail");
 			}
-			mHandler.postDelayed(readAndUpload, 45000);
+
+		} catch (Exception e) {
+			// ignore... for now - simply prevent service and activity from
+			// losing its shit.
+			USBOn();
+			Log.e(TAG, "Unable to readAndUpload", e);
+		}
+
+		mHandler.postDelayed(readAndUpload, 45000);
 		}
 	};
 
-	protected void doReadAndUpload() {
+	private void acquireSerialDevice() {
+		mSerialDevice = null;
+		mSerialDevice = UsbSerialProber.acquire(mUsbManager);
+		if (mSerialDevice == null) {
+
+			Log.i(TAG, "Unable to get the mSerialDevice, forcing USB PowerOn, and trying to get an updated mUsbManager");
+
+			try {
+				USBPower.PowerOn();
+			} catch (Exception e) {
+				Log.w(TAG, "acquireSerialDevice: Unable to PowerOn", e);
+			}
+
+			try {
+				Thread.sleep(2500);
+			} catch (InterruptedException e) { }
+
+			mUsbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
+
+			try {
+				Thread.sleep(2500);
+			} catch (InterruptedException e) { }
+
+			mSerialDevice = UsbSerialProber.acquire(mUsbManager);
+		}
+	}
+
+	protected void doReadAndUpload() throws Exception {
 
 		try {
 
-			mSerialDevice = null;
-			mSerialDevice = UsbSerialProber.acquire(mUsbManager);
+			acquireSerialDevice();
 
 			if (mSerialDevice != null) {
 				startIoManager();
@@ -130,9 +166,9 @@ public class DexcomG4Service extends Service {
 				DexcomReader dexcomReader = new DexcomReader(mSerialDevice);
 				dexcomReader.readFromReceiver(getBaseContext());
 
-				uploader.execute(new String[] { dexcomReader.displayTime,
-						dexcomReader.bGValue, dexcomReader.trend });
-								
+				uploader.execute(dexcomReader.displayTime,
+						dexcomReader.bGValue, dexcomReader.trend);
+
 				Handler handler = new Handler();
 				handler.postDelayed(new Runnable() {
 					@Override
@@ -146,17 +182,16 @@ public class DexcomG4Service extends Service {
 							
 							if (wifiManager.isWifiEnabled()) {
 								wifiManager.setWifiEnabled(false);
+
 								try {
 									Thread.sleep(2500);
-								} catch (InterruptedException e) {
-									e.printStackTrace();
-								}
+								} catch (InterruptedException e) { }
+
 								wifiManager.setWifiEnabled(true);
+
 								try {
 									Thread.sleep(2500);
-								} catch (InterruptedException e) {
-									e.printStackTrace();
-								}
+								} catch (InterruptedException e) { }
 							}
 						}
 
@@ -166,7 +201,8 @@ public class DexcomG4Service extends Service {
 			}
 
 		} catch (Exception e) {
-			e.printStackTrace();
+			Log.e(TAG, "Unable to doReadAndUpload", e);
+			throw e;
 		}
 
 	}
@@ -176,16 +212,20 @@ public class DexcomG4Service extends Service {
 			try {
 				mSerialDevice.close();
 			} catch (IOException e) {
-				e.printStackTrace();
+				Log.w(TAG, "Unable to close mSerialDevice", e);
 			}
+
 			try {
 				Thread.sleep(2000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+			} catch (InterruptedException e) { }
+
+			try {
+				USBPower.PowerOff();
+			} catch (Exception e) {
+				Log.w(TAG, "Unable to PowerOff, maybe set mSerialDevice to null?", e);
 			}
-			USBPower.PowerOff();
-			Log.i(TAG, "USB OFF");
 		} else {
+			Log.i(TAG, "USBOff: Receiver Not Found");
 			// displayMessage("Receiver Not Found");
 			// android.os.Process.killProcess(android.os.Process.myPid());
 		}
@@ -193,20 +233,27 @@ public class DexcomG4Service extends Service {
 	}
 
 	private void USBOn() {
+
+		acquireSerialDevice();
+
 		if (mSerialDevice != null) {
 			try {
 				mSerialDevice.close();
 			} catch (IOException e) {
-				e.printStackTrace();
+				Log.w(TAG, "Unable to close mSerialDevice", e);
 			}
-			USBPower.PowerOn();
+
 			try {
 				Thread.sleep(2000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+			} catch (InterruptedException e) { }
+
+			try {
+				USBPower.PowerOn();
+			} catch (Exception e) {
+				Log.w(TAG, "Unable to PowerOn", e);
 			}
-			Log.i(TAG, "USB ON");
 		} else {
+			Log.i(TAG, "USBOn: Receiver Not Found");
 			// displayMessage("Receiver Not Found");
 			// android.os.Process.killProcess(android.os.Process.myPid());
 		}
@@ -215,10 +262,12 @@ public class DexcomG4Service extends Service {
 
 	private boolean isConnected() {
 
-		mSerialDevice = UsbSerialProber.acquire(mUsbManager);
+		acquireSerialDevice();
+
 		if (mSerialDevice == null) {
+			Log.w(TAG, "Receiver Not Found");
 			//displayMessage("CGM Not Found...");
-			this.stopSelf();
+			//this.stopSelf(); //Jason: I think this was the main cause of instability
 			return false; // yeah, I know
 		} 
 		return true;
