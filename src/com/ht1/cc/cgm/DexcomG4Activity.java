@@ -11,9 +11,9 @@ import android.app.ActivityManager.RunningServiceInfo;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
+import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
@@ -25,9 +25,13 @@ import android.widget.TextView;
 public class DexcomG4Activity extends Activity {
 
 
+	/**
+	 * The system's USB service.
+	 */
+	public UsbManager mUsbManager;
 	private Handler mHandler = new Handler();
 
-	private int maxRetries = 20;
+	private int maxRetries = 999;
 	private int retryCount = 0;
 
 	private TextView mTitleTextView;
@@ -35,9 +39,7 @@ public class DexcomG4Activity extends Activity {
 	private ScrollView mScrollView;
 	private Button b1;
 
-	private final String TAG = DexcomG4Activity.class.getSimpleName();
-
-
+	
 	//All I'm really doing here is creating a simple activity to launch and maintain the service
 	private Runnable updateDataView = new Runnable() {
 		public void run() {
@@ -47,19 +49,11 @@ public class DexcomG4Activity extends Activity {
 					startService(new Intent(DexcomG4Activity.this,
 							DexcomG4Service.class));
 					mTitleTextView.setTextColor(Color.YELLOW);
-					String message = "Starting service " + retryCount + "/" + maxRetries;
-					mTitleTextView.setText(message);
-					Log.i(TAG, message);
-					try {
-						Thread.sleep(retryCount * 250L);
-					} catch (InterruptedException e) {}
+					mTitleTextView.setText("Connecting...");
 					++retryCount;
 				} else {
-					mTitleTextView.setTextColor(Color.RED);
-					mTitleTextView.setText("Unable to restart service");
-					Log.i(TAG, "Unable to restart service, trying to recreate the activity");
 					mHandler.removeCallbacks(updateDataView);
-					recreate();
+					finish();
 				}
 			} else {
 				mTitleTextView.setTextColor(Color.GREEN);
@@ -159,7 +153,9 @@ public class DexcomG4Activity extends Activity {
 			Object o = ois.readObject();
 			return (EGVRecord) o;
 		} catch (Exception ex) {
-			Log.e(TAG, " unable to loadEGVRecord", ex);
+
+			ex.printStackTrace();
+
 		}
 		return new EGVRecord();
 	}
