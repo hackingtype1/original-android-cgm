@@ -1,5 +1,9 @@
 original-android-cgm
 ====================
+I will no longer be updating this repository - I can merge pulls, etc, but all new functionaity and issues will be addressed in: https://github.com/hackingtype1/cgm-data-liberator
+
+It is a cleaner and hopefully more easily extended and supported. My hope is that that others will implement other upload methods, etc and they can be merged in.
+
 
 My original code for grabbing CGM data via an Android device... not pretty!
 
